@@ -1,0 +1,62 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const { Tutor, Progress } = require('./models/Schemas');
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+mongoose.connect('mongodb://localhost:27017/tutorDB')
+    .then(() => console.log("Connected to MongoDB"))
+    .catch(err => console.log(err));
+app.get('/api/tutors', async (req, res) => {
+    const { subject, level, availability, maxPrice } = req.query;
+    let query = {};
+
+    if (subject) query.subjects = { $in: [new RegExp(subject, 'i')] };
+    if (level) query.level = level;
+    if (availability) query.availability = availability;
+    if (maxPrice) query.pricePerHour = { $lte: Number(maxPrice) };
+
+    const tutors = await Tutor.find(query);
+    res.json(tutors);
+});
+
+app.get('/api/progress/:studentId', async (req, res) => {
+    const data = await Progress.findOne({ studentId: req.params.studentId });
+    res.json(data);
+});
+
+app.post('/api/progress/update', async (req, res) => {
+    const { studentId, lessonName, improvement } = req.body;
+    const update = await Progress.findOneAndUpdate(
+        { studentId },
+        { 
+            $inc: { completedLessons: 1 },
+            $set: { skillImprovement: improvement },
+            $push: { history: { lessonName } }
+        },
+        { upsert: true, new: true }
+    );
+    res.json(update);
+});
+
+app.post('/api/tutors/add', async (req, res) => {
+    const newTutor = new Tutor(req.body);
+    await newTutor.save();
+    res.status(201).json({ message: "Profile Created" });
+});
+
+app.put('/api/tutors/update/:id', async (req, res) => {
+    const updated = await Tutor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(updated);
+});
+
+app.delete('/api/tutors/delete/:id', async (req, res) => {
+    await Tutor.findByIdAndDelete(req.params.id);
+    res.json({ message: "Profile Removed" });
+});
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
