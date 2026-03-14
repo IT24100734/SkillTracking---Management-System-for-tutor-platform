@@ -1,0 +1,116 @@
+const Course = require('../models/Course');
+const Subject = require('../models/Subject');
+
+const formatCourse = (courseDoc) => {
+    const course = typeof courseDoc.toObject === 'function' ? courseDoc.toObject() : courseDoc;
+    return {
+        id: course._id.toString(),
+        _id: course._id.toString(),
+        title: course.title,
+        description: course.description,
+        subject: course.subjectId?.name || course.subject || '',
+        subjectId: course.subjectId?._id?.toString() || course.subjectId?.toString(),
+        fee: course.enrollmentFee,
+        enrollmentFee: course.enrollmentFee,
+        imageUrl: course.coverImage || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
+        coverImage: course.coverImage || null,
+        createdAt: course.createdAt,
+        updatedAt: course.updatedAt
+    };
+};
+
+const getCourses = async (req, res) => {
+    try {
+        const courses = await Course.find().populate('subjectId');
+        const formatted = courses.map(formatCourse);
+
+        res.json(formatted);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getCourseById = async (req, res) => {
+    try {
+        const course = await Course.findById(req.params.id).populate('subjectId');
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        res.json(formatCourse(course));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const addCourse = async (req, res) => {
+    try {
+        const { title, description, enrollmentFee, coverImage, subjectId } = req.body;
+
+        const subject = await Subject.findById(subjectId);
+        if (!subject) {
+            return res.status(404).json({ message: 'Subject not found' });
+        }
+
+        const course = await Course.create({
+            title,
+            description,
+            enrollmentFee: Number(enrollmentFee || 0),
+            coverImage,
+            subjectId
+        });
+
+        await course.populate('subjectId');
+
+        res.status(201).json(formatCourse(course));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateCourse = async (req, res) => {
+    try {
+        const { title, description, enrollmentFee, coverImage, subjectId } = req.body;
+
+        if (subjectId) {
+            const subject = await Subject.findById(subjectId);
+            if (!subject) {
+                return res.status(404).json({ message: 'Subject not found' });
+            }
+        }
+
+        const updateData = {
+            title,
+            description,
+            coverImage
+        };
+
+        if (enrollmentFee !== undefined) updateData.enrollmentFee = Number(enrollmentFee);
+        if (subjectId) updateData.subjectId = subjectId;
+
+        const course = await Course.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true }).populate('subjectId');
+
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        res.json(formatCourse(course));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+const deleteCourse = async (req, res) => {
+    try {
+        const deleted = await Course.findByIdAndDelete(req.params.id);
+
+        if (!deleted) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        res.json({ message: 'Course removed' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+module.exports = { getCourses, getCourseById, addCourse, updateCourse, deleteCourse };
